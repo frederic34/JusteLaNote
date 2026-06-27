@@ -35,6 +35,9 @@ private val whiteKeyWidth = 44.dp
 private val blackKeyWidth = 28.dp
 private val keyboardHeight = 180.dp
 
+// Leger arrondi du bas des touches blanches.
+private val whiteKeyShape = RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp)
+
 // Noms de notes (solfege francais) suivis d'un diese sur le clavier.
 private val pitchesWithSharp = setOf("Do", "Re", "Fa", "Sol", "La")
 
@@ -108,8 +111,9 @@ private fun WhiteKey(note: MusicalNote, selected: Boolean, onClick: () -> Unit) 
         modifier = Modifier
             .width(whiteKeyWidth)
             .fillMaxHeight()
-            .border(0.5.dp, Color(0xFF999999))
+            .clip(whiteKeyShape)
             .background(if (selected) MaterialTheme.colorScheme.primary else Color.White)
+            .border(0.5.dp, Color(0xFF999999), whiteKeyShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.BottomCenter
     ) {
