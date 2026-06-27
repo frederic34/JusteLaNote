@@ -1,6 +1,6 @@
 # Juste La Note
 
-[![Android CI](https://github.com/frederic34/JusteLaNote/actions/workflows/android.yml/badge.svg)](https://github.com/frederic34/JusteLaNote/actions/workflows/android.yml) [![Android](https://img.shields.io/badge/Android-minSdk%2024-3DDC84?logo=android&logoColor=white)](https://developer.android.com) [![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org) [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose) [![Licence : GPL v3](https://img.shields.io/badge/Licence-GPLv3-blue.svg)](LICENSE)
+[![Android CI](https://github.com/frederic34/JusteLaNote/actions/workflows/android.yml/badge.svg)](https://github.com/frederic34/JusteLaNote/actions/workflows/android.yml) [![Dernière version](https://img.shields.io/github/v/release/frederic34/JusteLaNote)](https://github.com/frederic34/JusteLaNote/releases/latest) [![Android](https://img.shields.io/badge/Android-minSdk%2024-3DDC84?logo=android&logoColor=white)](https://developer.android.com) [![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org) [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose) [![Licence : GPL v3](https://img.shields.io/badge/Licence-GPLv3-blue.svg)](LICENSE)
 
 Application Android d'**entraînement à la justesse vocale** et d'**accordage d'instrument**.
 On choisit une note sur un clavier de piano, on l'écoute (diapason ou instrument
@@ -15,6 +15,15 @@ la hauteur en temps réel avec un vu-mètre analogique.
 <p align="center">
   <img src="docs/screenshots/paysage.png" width="560" alt="Mise en page paysage"/>
 </p>
+
+## Téléchargement
+
+Les versions publiées sont sur la **[page des releases](https://github.com/frederic34/JusteLaNote/releases/latest)** :
+
+- **`app-release.apk`** — à installer directement sur un appareil Android (activer « sources inconnues »).
+- **`app-release.aab`** — bundle destiné au Google Play Store.
+
+L'APK est signé. N'étant pas distribué via le Play Store, Android peut afficher un avertissement à l'installation — c'est normal.
 
 ## Fonctionnalités
 
