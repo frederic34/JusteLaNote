@@ -1,7 +1,11 @@
 package com.justelanote.app
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,14 +35,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.pow
+import kotlin.math.sin
 
 private val tuneGreen = Color(0xFF4CAF50)
+
+// Palette du vu-metre analogique (independante du theme clair/sombre).
+private val vuFace = Color(0xFFF2E2B6)
+private val vuLine = Color(0xFF4A3B22)
+private val vuRed = Color(0xFFB3261E)
+private val vuNeedle = Color(0xFF222222)
 
 /**
  * Accordeur d'instrument : affiche en continu la note la plus proche et l'ecart
@@ -141,13 +157,12 @@ fun TunerScreen(
                     )
 
                     Spacer(Modifier.height(40.dp))
-                    Text(
-                        "Niveau",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    VintageVuMeter(
+                        level = level,
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(120.dp)
                     )
-                    Spacer(Modifier.height(6.dp))
-                    VuMeter(level = level)
                 }
             }
         }
@@ -155,20 +170,63 @@ fun TunerScreen(
 }
 
 @Composable
-private fun VuMeter(level: Float) {
+private fun VintageVuMeter(level: Float, modifier: Modifier = Modifier) {
+    // L'aiguille interpole entre les mesures pour un balayage fluide et "physique".
+    val needle by animateFloatAsState(
+        targetValue = level.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 180),
+        label = "needle"
+    )
+    val startAngle = 220f
+    val sweep = 100f
     Box(
-        modifier = Modifier
-            .fillMaxWidth(0.7f)
-            .height(10.dp)
-            .clip(RoundedCornerShape(5.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(vuFace)
+            .border(2.dp, vuLine, RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(level.coerceIn(0f, 1f))
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(5.dp))
-                .background(if (level > 0.85f) Color(0xFFE53935) else MaterialTheme.colorScheme.primary)
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = size.width / 2f
+            val cy = size.height * 0.95f
+            val r = (size.height * 0.82f).coerceAtMost(size.width * 0.46f)
+            val box = Size(r * 2, r * 2)
+            val topLeft = Offset(cx - r, cy - r)
+
+            // Arc principal puis zone rouge (niveaux eleves).
+            drawArc(vuLine, startAngle, sweep, false, topLeft, box, style = Stroke(2.dp.toPx()))
+            drawArc(vuRed, startAngle + sweep * 0.78f, sweep * 0.22f, false, topLeft, box, style = Stroke(4.dp.toPx()))
+
+            // Graduations.
+            for (i in 0..10) {
+                val a = Math.toRadians((startAngle + sweep * i / 10f).toDouble())
+                val ca = cos(a).toFloat()
+                val sa = sin(a).toFloat()
+                val tick = if (i % 5 == 0) 12.dp.toPx() else 7.dp.toPx()
+                drawLine(
+                    vuLine,
+                    Offset(cx + (r - tick) * ca, cy + (r - tick) * sa),
+                    Offset(cx + r * ca, cy + r * sa),
+                    strokeWidth = 1.5.dp.toPx()
+                )
+            }
+
+            // Aiguille + pivot.
+            val na = Math.toRadians((startAngle + sweep * needle).toDouble())
+            drawLine(
+                vuNeedle,
+                Offset(cx, cy),
+                Offset(cx + r * 0.92f * cos(na).toFloat(), cy + r * 0.92f * sin(na).toFloat()),
+                strokeWidth = 2.5.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawCircle(vuNeedle, radius = 5.dp.toPx(), center = Offset(cx, cy))
+        }
+        Text(
+            "VU",
+            style = MaterialTheme.typography.labelSmall,
+            color = vuLine,
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }
