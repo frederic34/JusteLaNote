@@ -65,7 +65,6 @@ fun PitchTrainerScreen(
     var selectedNote by remember { mutableStateOf(NoteLibrary.defaultNote) }
     var isRecording by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun startRecordingAndAnalyze() {
@@ -104,22 +103,22 @@ fun PitchTrainerScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        Box {
-            Button(onClick = { expanded = true }) {
-                Text("Note : ${selectedNote.name} (${selectedNote.frequency.toInt()} Hz)")
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                NoteLibrary.notes.forEach { note ->
-                    DropdownMenuItem(
-                        text = { Text("${note.name} - ${note.frequency.toInt()} Hz") },
-                        onClick = {
-                            selectedNote = note
-                            expanded = false
-                        }
-                    )
-                }
-            }
-        }
+        Text(
+            "Note cible : ${selectedNote.name} (${selectedNote.frequency.toInt()} Hz)",
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        PianoKeyboard(
+            notes = NoteLibrary.notes,
+            selectedNote = selectedNote,
+            onNoteSelected = { note ->
+                selectedNote = note
+                notePlayer.playNote(note.frequency)
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(Modifier.height(16.dp))
 
