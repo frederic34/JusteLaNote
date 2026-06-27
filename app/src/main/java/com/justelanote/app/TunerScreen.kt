@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,13 +53,18 @@ fun TunerScreen(
 ) {
     var granted by remember { mutableStateOf(hasPermission()) }
     var freq by remember { mutableStateOf<Double?>(null) }
+    var level by remember { mutableStateOf(0f) }
     val engine = remember { TunerEngine() }
 
     LaunchedEffect(Unit) {
         if (!granted) requestPermission { granted = it }
     }
     LaunchedEffect(granted) {
-        if (granted) engine.run { detected -> freq = detected }
+        if (granted) engine.run { detected, lvl ->
+            freq = detected
+            // Vu-metre : attaque rapide, retombee plus lente.
+            level = maxOf(lvl, level * 0.8f)
+        }
     }
 
     val note = freq?.let { NoteLibrary.closestNote(it) }
@@ -115,9 +122,37 @@ fun TunerScreen(
                         style = MaterialTheme.typography.titleMedium,
                         color = if (inTune) tuneGreen else MaterialTheme.colorScheme.onSurface
                     )
+
+                    Spacer(Modifier.height(40.dp))
+                    Text(
+                        "Niveau",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    VuMeter(level = level)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VuMeter(level: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(0.7f)
+            .height(10.dp)
+            .clip(RoundedCornerShape(5.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(level.coerceIn(0f, 1f))
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(5.dp))
+                .background(if (level > 0.85f) Color(0xFFE53935) else MaterialTheme.colorScheme.primary)
+        )
     }
 }
 
