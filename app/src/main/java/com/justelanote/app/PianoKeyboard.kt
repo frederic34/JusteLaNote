@@ -49,21 +49,31 @@ fun PianoKeyboard(
     highlightedNotes: Set<String>,
     centerNote: MusicalNote,
     onNoteSelected: (MusicalNote) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    scrollTarget: MusicalNote? = null
 ) {
     val whiteKeys = notes.filter { !it.name.contains("#") }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
 
+    fun scrollPxFor(note: MusicalNote): Int {
+        val index = whiteKeys.indexOfFirst { it.name == note.name }
+            .let { if (it >= 0) it else whiteKeys.indexOfLast { w -> w.frequency <= note.frequency } }
+            .coerceAtLeast(0)
+        return with(density) { (whiteKeyWidth * (index - 2)).toPx() }.toInt().coerceAtLeast(0)
+    }
+
     // Centre le clavier sur la note de reference au premier affichage.
     LaunchedEffect(Unit) {
-        val whiteIndex = whiteKeys.indexOfFirst { it.name == centerNote.name }
-            .let { if (it >= 0) it else whiteKeys.indexOfLast { w -> w.frequency <= centerNote.frequency } }
-            .coerceAtLeast(0)
-        val target = with(density) { (whiteKeyWidth * (whiteIndex - 2)).toPx() }
+        val target = scrollPxFor(centerNote)
         // Attend que le contenu soit mesure pour que scrollTo ne soit pas tronque a 0.
         snapshotFlow { scrollState.maxValue }.filter { it > 0 }.first()
-        scrollState.scrollTo(target.toInt().coerceAtLeast(0))
+        scrollState.scrollTo(target)
+    }
+
+    // Suit une note cible (ex. au lancement d'une melodie) en defilant vers elle.
+    LaunchedEffect(scrollTarget) {
+        if (scrollTarget != null) scrollState.animateScrollTo(scrollPxFor(scrollTarget))
     }
 
     Box(

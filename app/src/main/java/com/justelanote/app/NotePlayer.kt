@@ -31,12 +31,14 @@ class NotePlayer(context: Context) {
 
     fun playNote(note: MusicalNote, instrument: Instrument, durationMs: Int = 1500) {
         val program = instrument.gmProgram
-        if (program == null) playSine(note.frequency, durationMs) else playMidi(note.midi, program)
+        if (program == null) playSine(note.frequency, durationMs) else playMidi(note.midi, program, durationMs)
     }
 
-    private fun playMidi(midiNote: Int, program: Int) {
+    private fun playMidi(midiNote: Int, program: Int, durationMs: Int) {
+        // ~0,96 tick/ms a 120 BPM (DIVISION = 480) ; petit silence de fin.
+        val soundTicks = (durationMs * 0.96).toInt().coerceAtLeast(1)
         val file = File(cacheDir, "voice_${voiceCounter++}.mid")
-        file.writeBytes(MidiBuilder.singleNote(midiNote, program))
+        file.writeBytes(MidiBuilder.singleNote(midiNote, program, soundTicks, tailTicks = 96))
 
         val mp = MediaPlayer()
         activePlayers.add(mp)

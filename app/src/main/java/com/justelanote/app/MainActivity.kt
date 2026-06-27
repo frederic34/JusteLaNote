@@ -21,13 +21,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.justelanote.app.ui.theme.JusteLaNoteTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -102,6 +106,10 @@ fun PitchTrainerScreen(
     var isRecording by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var melodyPlaying by remember { mutableStateOf(false) }
+    var melodyJob by remember { mutableStateOf<Job?>(null) }
+    var scrollTarget by remember { mutableStateOf<MusicalNote?>(null) }
 
     fun startRecordingAndAnalyze() {
         isRecording = true
@@ -150,6 +158,42 @@ fun PitchTrainerScreen(
         }
     }
 
+    // Joue la melodie prechargee (MusicXML) avec l'instrument courant, en
+    // surlignant chaque touche le temps de sa note. Re-appui = arret.
+    fun toggleMelody() {
+        val current = melodyJob
+        if (current != null) {
+            current.cancel()
+            return
+        }
+        melodyPlaying = true
+        melodyJob = scope.launch {
+            try {
+                val melody = withContext(Dispatchers.IO) {
+                    context.assets.open("au_clair_de_la_lune.musicxml").use { MusicXmlParser.parse(it) }
+                }
+                // Defile le clavier vers la melodie pour que le surlignage soit visible.
+                melody.firstOrNull { it.midi != null }?.midi?.let { scrollTarget = NoteLibrary.noteForMidi(it) }
+                for (n in melody) {
+                    val mn = n.midi?.let { NoteLibrary.noteForMidi(it) }
+                    if (mn != null) {
+                        notePlayer.playNote(mn, selectedInstrument, n.durationMs)
+                        playingCounts[mn.name] = (playingCounts[mn.name] ?: 0) + 1
+                    }
+                    delay(n.durationMs.toLong())
+                    if (mn != null) {
+                        val c = (playingCounts[mn.name] ?: 1) - 1
+                        if (c <= 0) playingCounts.remove(mn.name) else playingCounts[mn.name] = c
+                    }
+                }
+            } finally {
+                melodyPlaying = false
+                melodyJob = null
+                playingCounts.clear()
+            }
+        }
+    }
+
     val noteLabel: @Composable () -> Unit = {
         Text(
             "Note cible : ${selectedNote.name} (${selectedNote.frequency.toInt()} Hz)",
@@ -163,7 +207,8 @@ fun PitchTrainerScreen(
             highlightedNotes = playingCounts.keys.toSet(),
             centerNote = selectedNote,
             onNoteSelected = { note -> play(note, selectedInstrument) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            scrollTarget = scrollTarget
         )
     }
 
@@ -227,6 +272,18 @@ fun PitchTrainerScreen(
         )
     }
 
+    val melodyButton: @Composable () -> Unit = {
+        OutlinedButton(onClick = { toggleMelody() }) {
+            Icon(
+                painter = painterResource(if (melodyPlaying) R.drawable.ic_stop else R.drawable.ic_play),
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            Text("Au clair de la lune")
+        }
+    }
+
     val isLandscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -252,6 +309,8 @@ fun PitchTrainerScreen(
                 noteLabel()
                 Spacer(Modifier.height(8.dp))
                 keyboard()
+                Spacer(Modifier.height(12.dp))
+                melodyButton()
             }
             Spacer(Modifier.width(24.dp))
             // Instruments empiles verticalement (defilants), bouton epingle en bas.
@@ -293,6 +352,8 @@ fun PitchTrainerScreen(
             noteLabel()
             Spacer(Modifier.height(8.dp))
             keyboard()
+            Spacer(Modifier.height(12.dp))
+            melodyButton()
             Spacer(Modifier.height(16.dp))
             instrumentSelector()
             Spacer(Modifier.height(16.dp))

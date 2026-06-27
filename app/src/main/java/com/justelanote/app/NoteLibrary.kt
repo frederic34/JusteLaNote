@@ -40,6 +40,9 @@ object NoteLibrary {
     fun closestNote(frequency: Double): MusicalNote =
         notes.minByOrNull { abs(it.frequency - frequency) }!!
 
+    /** Note correspondant a un numero MIDI, ou null si hors plage. */
+    fun noteForMidi(midi: Int): MusicalNote? = notes.find { it.midi == midi }
+
     /** Ecart en cents entre une frequence detectee et une note cible (positif = trop haut). */
     fun centsOff(frequency: Double, target: MusicalNote): Double =
         1200.0 * ln(frequency / target.frequency) / ln(2.0)
