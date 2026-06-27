@@ -70,3 +70,11 @@ Tests unitaires JVM (sans appareil) :
 ## Pile technique
 
 Kotlin · Jetpack Compose (Material 3) · AGP 9.2.1 · Kotlin 2.2.10 · `compileSdk` 36 · `minSdk` 24. Synthèse audio via `AudioTrack` / `MediaPlayer` (synthé Sonivox intégré) et captation via `AudioRecord`.
+
+## Licence
+
+Distribué sous licence **GNU General Public License v3.0** — voir le fichier [LICENSE](LICENSE).
+Vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer, à condition que les
+versions dérivées restent sous la même licence (copyleft).
+
+© 2026 Frédéric France
