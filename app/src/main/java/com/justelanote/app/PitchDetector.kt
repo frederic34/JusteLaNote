@@ -11,10 +11,10 @@ import kotlin.math.abs
  */
 object PitchDetector {
 
-    private const val MIN_FREQ = 60.0    // Hz - couvre les voix les plus graves
-    private const val MAX_FREQ = 1100.0  // Hz - couvre les voix les plus aigues
-    private const val WINDOW_SIZE = 2048
-    private const val HOP_SIZE = 2048    // pas de chevauchement = calcul rapide
+    private const val MIN_FREQ = 28.0    // Hz - couvre les cordes graves (basse 5 cordes, Si0 ~31 Hz)
+    private const val MAX_FREQ = 1100.0  // Hz - couvre voix et cordes aigues
+    private const val WINDOW_SIZE = 4096 // assez grand pour estimer les frequences graves (>= 2 periodes)
+    private const val HOP_SIZE = 4096    // pas de chevauchement = calcul rapide
     private const val THRESHOLD = 0.15
 
     fun detectPitch(audioBuffer: ShortArray, sampleRate: Int): Double? {

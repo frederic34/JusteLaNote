@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -42,19 +43,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             // null = suit le reglage systeme ; sinon choix manuel via la bascule.
             var darkOverride by remember { mutableStateOf<Boolean?>(null) }
+            var showTuner by remember { mutableStateOf(false) }
             val isDark = darkOverride ?: isSystemInDarkTheme()
+            val requestMic: (callback: (Boolean) -> Unit) -> Unit = { callback ->
+                onPermissionResult = callback
+                requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
             JusteLaNoteTheme(darkTheme = isDark, dynamicColor = false) {
-                PitchTrainerScreen(
-                    notePlayer = notePlayer,
-                    recorder = recorder,
-                    hasPermission = { hasRecordPermission() },
-                    requestPermission = { callback ->
-                        onPermissionResult = callback
-                        requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    },
-                    isDarkTheme = isDark,
-                    onToggleTheme = { darkOverride = !isDark }
-                )
+                if (showTuner) {
+                    BackHandler { showTuner = false }
+                    TunerScreen(
+                        hasPermission = { hasRecordPermission() },
+                        requestPermission = requestMic,
+                        onBack = { showTuner = false }
+                    )
+                } else {
+                    PitchTrainerScreen(
+                        notePlayer = notePlayer,
+                        recorder = recorder,
+                        hasPermission = { hasRecordPermission() },
+                        requestPermission = requestMic,
+                        isDarkTheme = isDark,
+                        onToggleTheme = { darkOverride = !isDark },
+                        onOpenTuner = { showTuner = true }
+                    )
+                }
             }
         }
     }
@@ -76,7 +89,8 @@ fun PitchTrainerScreen(
     hasPermission: () -> Boolean,
     requestPermission: (callback: (Boolean) -> Unit) -> Unit,
     isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    onOpenTuner: () -> Unit
 ) {
     var selectedNote by remember { mutableStateOf(NoteLibrary.defaultNote) }
     var selectedInstrument by remember { mutableStateOf(Instruments.default) }
@@ -142,7 +156,7 @@ fun PitchTrainerScreen(
 
     val keyboard: @Composable () -> Unit = {
         PianoKeyboard(
-            notes = NoteLibrary.notes,
+            notes = NoteLibrary.keyboardNotes,
             highlightedNotes = playingCounts.keys.toSet(),
             centerNote = selectedNote,
             onNoteSelected = { note -> play(note, selectedInstrument) },
@@ -296,6 +310,18 @@ fun PitchTrainerScreen(
                     if (isDarkTheme) R.drawable.ic_light_mode else R.drawable.ic_dark_mode
                 ),
                 contentDescription = if (isDarkTheme) "Mode clair" else "Mode sombre"
+            )
+        }
+
+        IconButton(
+            onClick = onOpenTuner,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_diapason),
+                contentDescription = "Accordeur"
             )
         }
     }

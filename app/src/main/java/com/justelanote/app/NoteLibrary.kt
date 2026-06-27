@@ -13,21 +13,26 @@ object NoteLibrary {
         "Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"
     )
 
-    /**
-     * Genere les notes de Do2 (~65 Hz) a Do6 (~1047 Hz), soit MIDI 36 a 84.
-     * Couvre confortablement la quasi-totalite des tessitures vocales.
-     */
-    val notes: List<MusicalNote> by lazy {
-        (36..84).map { midi ->
-            val freq = 440.0 * 2.0.pow((midi - 69) / 12.0)
-            val octave = midi / 12 - 1
-            val name = "${noteNames[midi % 12]}$octave"
-            MusicalNote(name, freq, midi)
-        }
+    private fun noteAt(midi: Int): MusicalNote {
+        val freq = 440.0 * 2.0.pow((midi - 69) / 12.0)
+        val octave = midi / 12 - 1
+        return MusicalNote("${noteNames[midi % 12]}$octave", freq, midi)
     }
 
+    /**
+     * Plage complete (MIDI 23 a 96, Si0 ~31 Hz a Do7) utilisee pour la detection
+     * et l'accordeur : permet d'identifier aussi les cordes graves des instruments.
+     */
+    val notes: List<MusicalNote> by lazy { (23..96).map { noteAt(it) } }
+
+    /**
+     * Sous-ensemble affiche sur le clavier de piano : Do2 (~65 Hz) a Do6 (~1047 Hz),
+     * qui couvre confortablement les tessitures vocales.
+     */
+    val keyboardNotes: List<MusicalNote> by lazy { (36..84).map { noteAt(it) } }
+
     val defaultNote: MusicalNote
-        get() = notes.first { it.name == "La4" }
+        get() = keyboardNotes.first { it.name == "La4" }
 
     fun closestNote(frequency: Double): MusicalNote =
         notes.minByOrNull { abs(it.frequency - frequency) }!!
