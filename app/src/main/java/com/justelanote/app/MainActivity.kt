@@ -6,7 +6,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -63,6 +65,7 @@ fun PitchTrainerScreen(
     requestPermission: (callback: (Boolean) -> Unit) -> Unit
 ) {
     var selectedNote by remember { mutableStateOf(NoteLibrary.defaultNote) }
+    var selectedInstrument by remember { mutableStateOf(Instruments.default) }
     var isRecording by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -115,15 +118,29 @@ fun PitchTrainerScreen(
             selectedNote = selectedNote,
             onNoteSelected = { note ->
                 selectedNote = note
-                notePlayer.playNote(note.frequency)
+                notePlayer.playNote(note.frequency, selectedInstrument)
             },
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(16.dp))
 
-        Button(onClick = { notePlayer.playNote(selectedNote.frequency) }) {
-            Text("Jouer la note")
+        Text("Instrument", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Instruments.all.forEach { instrument ->
+                FilterChip(
+                    selected = instrument == selectedInstrument,
+                    onClick = {
+                        selectedInstrument = instrument
+                        notePlayer.playNote(selectedNote.frequency, instrument)
+                    },
+                    label = { Text(instrument.name) }
+                )
+            }
         }
 
         Spacer(Modifier.height(16.dp))
