@@ -36,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
+import kotlin.math.pow
 
 private val tuneGreen = Color(0xFF4CAF50)
 
@@ -52,7 +53,9 @@ fun TunerScreen(
     onBack: () -> Unit
 ) {
     var granted by remember { mutableStateOf(hasPermission()) }
-    var freq by remember { mutableStateOf<Double?>(null) }
+    var note by remember { mutableStateOf<MusicalNote?>(null) }
+    var displayCents by remember { mutableStateOf(0.0) }
+    var hasReading by remember { mutableStateOf(false) }
     var level by remember { mutableStateOf(0f) }
     val engine = remember { TunerEngine() }
 
@@ -60,16 +63,30 @@ fun TunerScreen(
         if (!granted) requestPermission { granted = it }
     }
     LaunchedEffect(granted) {
-        if (granted) engine.run { detected, lvl ->
-            freq = detected
+        if (!granted) return@LaunchedEffect
+        var silence = 0
+        engine.run { detected, lvl ->
             // Vu-metre : attaque rapide, retombee plus lente.
             level = maxOf(lvl, level * 0.8f)
+            if (detected != null) {
+                silence = 0
+                val n = NoteLibrary.closestNote(detected)
+                val c = NoteLibrary.centsOff(detected, n)
+                // Lissage exponentiel de l'aiguille ; saut net si la note change
+                // (sinon elle baverait a travers la frontiere +/-50 cents).
+                displayCents = if (!hasReading || n.name != note?.name) c
+                else displayCents * 0.75 + c * 0.25
+                note = n
+                hasReading = true
+            } else if (++silence > 5) {
+                hasReading = false // ~0,5 s de silence -> efface l'affichage
+            }
         }
     }
 
-    val note = freq?.let { NoteLibrary.closestNote(it) }
-    val cents = if (freq != null && note != null) NoteLibrary.centsOff(freq!!, note) else null
+    val cents = if (hasReading) displayCents else null
     val inTune = cents != null && abs(cents) < 5
+    val shownHz = if (hasReading) note?.let { it.frequency * 2.0.pow(displayCents / 1200.0) } else null
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -105,7 +122,7 @@ fun TunerScreen(
                         color = if (inTune) tuneGreen else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = freq?.let { "${it.toInt()} Hz" } ?: "Jouez une note",
+                        text = shownHz?.let { "${it.toInt()} Hz" } ?: "Jouez une note",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
