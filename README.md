@@ -1,5 +1,7 @@
 # Juste La Note
 
+[![Licence : GPL v3](https://img.shields.io/badge/Licence-GPLv3-blue.svg)](LICENSE)
+
 Application Android d'**entraînement à la justesse vocale** et d'**accordage d'instrument**.
 On choisit une note sur un clavier de piano, on l'écoute (diapason ou instrument
 réel), on la chante, et l'app mesure l'écart en cents. Un mode accordeur analyse
