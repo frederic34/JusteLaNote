@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Frédéric France
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 package com.justelanote.app.ui.theme
 
 import androidx.compose.material3.Typography
