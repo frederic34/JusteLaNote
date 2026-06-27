@@ -1,0 +1,155 @@
+package com.justelanote.app
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
+
+class MainActivity : ComponentActivity() {
+
+    private lateinit var notePlayer: NotePlayer
+    private val recorder = AudioRecorderHelper()
+    private var onPermissionResult: ((Boolean) -> Unit)? = null
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> onPermissionResult?.invoke(granted) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        notePlayer = NotePlayer()
+
+        setContent {
+            MaterialTheme {
+                PitchTrainerScreen(
+                    notePlayer = notePlayer,
+                    recorder = recorder,
+                    hasPermission = { hasRecordPermission() },
+                    requestPermission = { callback ->
+                        onPermissionResult = callback
+                        requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                )
+            }
+        }
+    }
+
+    private fun hasRecordPermission() = ContextCompat.checkSelfPermission(
+        this, Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
+
+    override fun onDestroy() {
+        super.onDestroy()
+        notePlayer.release()
+    }
+}
+
+@Composable
+fun PitchTrainerScreen(
+    notePlayer: NotePlayer,
+    recorder: AudioRecorderHelper,
+    hasPermission: () -> Boolean,
+    requestPermission: (callback: (Boolean) -> Unit) -> Unit
+) {
+    var selectedNote by remember { mutableStateOf(NoteLibrary.defaultNote) }
+    var isRecording by remember { mutableStateOf(false) }
+    var resultText by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun startRecordingAndAnalyze() {
+        isRecording = true
+        resultText = "Enregistrement en cours..."
+        scope.launch {
+            val buffer = recorder.record(2500)
+            val detected = PitchDetector.detectPitch(buffer, recorder.sampleRate())
+            isRecording = false
+            resultText = if (detected == null) {
+                "Aucune note detectee. Chantez plus fort, plus pres du micro, ou tenez la note plus longtemps."
+            } else {
+                val cents = NoteLibrary.centsOff(detected, selectedNote)
+                val detectedClosest = NoteLibrary.closestNote(detected)
+                val verdict = when {
+                    kotlin.math.abs(cents) < 15 -> "Juste !"
+                    cents > 0 -> "Trop haut de ${"%.0f".format(cents)} cents"
+                    else -> "Trop bas de ${"%.0f".format(-cents)} cents"
+                }
+                "Detecte : ${detectedClosest.name} (${detected.toInt()} Hz)\n$verdict"
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Juste La Note", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Entrainement a la justesse",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(Modifier.height(24.dp))
+
+        Box {
+            Button(onClick = { expanded = true }) {
+                Text("Note : ${selectedNote.name} (${selectedNote.frequency.toInt()} Hz)")
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                NoteLibrary.notes.forEach { note ->
+                    DropdownMenuItem(
+                        text = { Text("${note.name} - ${note.frequency.toInt()} Hz") },
+                        onClick = {
+                            selectedNote = note
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(onClick = { notePlayer.playNote(selectedNote.frequency) }) {
+            Text("Jouer la note")
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            enabled = !isRecording,
+            onClick = {
+                if (!hasPermission()) {
+                    requestPermission { granted ->
+                        if (granted) startRecordingAndAnalyze()
+                        else resultText = "Permission micro refusee."
+                    }
+                } else {
+                    startRecordingAndAnalyze()
+                }
+            }
+        ) {
+            Text(if (isRecording) "Enregistrement..." else "Enregistrer (3s)")
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Text(
+            resultText,
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center
+        )
+    }
+}
