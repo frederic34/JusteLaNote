@@ -1,52 +1,76 @@
 package com.justelanote.app
 
+import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.MediaPlayer
+import android.os.Handler
+import android.os.Looper
+import java.io.File
 import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.exp
 import kotlin.math.sin
 
-class NotePlayer {
+/**
+ * Joue des notes en polyphonie : chaque appel lance une voix independante qui
+ * sonne sa duree puis se libere, sans couper les notes deja en cours. Le
+ * diapason est synthetise (sinus pur) ; les autres instruments passent par le
+ * synthetiseur General MIDI integre d'Android.
+ */
+class NotePlayer(context: Context) {
 
-    private var audioTrack: AudioTrack? = null
+    private val cacheDir = context.applicationContext.cacheDir
+    private val handler = Handler(Looper.getMainLooper())
+    private val activeTracks = mutableListOf<AudioTrack>()
+    private val activePlayers = mutableListOf<MediaPlayer>()
+    private var voiceCounter = 0
 
-    fun playNote(
-        frequencyHz: Double,
-        instrument: Instrument = Instruments.default,
-        durationMs: Int = 1500
-    ) {
-        audioTrack?.release()
+    fun playNote(note: MusicalNote, instrument: Instrument, durationMs: Int = 1500) {
+        val program = instrument.gmProgram
+        if (program == null) playSine(note.frequency, durationMs) else playMidi(note.midi, program)
+    }
 
+    private fun playMidi(midiNote: Int, program: Int) {
+        val file = File(cacheDir, "voice_${voiceCounter++}.mid")
+        file.writeBytes(MidiBuilder.singleNote(midiNote, program))
+
+        val mp = MediaPlayer()
+        activePlayers.add(mp)
+        mp.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+        )
+        mp.setOnPreparedListener { it.start() }
+        mp.setOnCompletionListener { it.release(); activePlayers.remove(it); file.delete() }
+        mp.setOnErrorListener { m, _, _ -> m.release(); activePlayers.remove(m); file.delete(); true }
+        try {
+            mp.setDataSource(file.absolutePath)
+            mp.prepareAsync()
+        } catch (_: Exception) {
+            mp.release(); activePlayers.remove(mp); file.delete()
+        }
+    }
+
+    private fun playSine(frequencyHz: Double, durationMs: Int) {
         val sampleRate = 44100
         val numSamples = (durationMs / 1000.0 * sampleRate).toInt()
-        val samples = DoubleArray(numSamples)
-
-        // Synthese additive : on ne garde que les partiels sous la frequence de
-        // Nyquist pour eviter le repliement (aliasing) sur les notes aigues.
-        val nyquist = sampleRate / 2.0
-        val partials = instrument.harmonics
-            .mapIndexed { index, amp -> (index + 1) to amp }
-            .filter { (harmonic, amp) -> amp != 0.0 && harmonic * frequencyHz < nyquist }
-        val ampSum = partials.sumOf { abs(it.second) }.coerceAtLeast(1e-9)
-
+        val buffer = ShortArray(numSamples)
+        // Fondu d'entree/sortie pour eviter les "clics".
+        val fade = (sampleRate * 0.015).toInt().coerceAtLeast(1)
         for (i in 0 until numSamples) {
-            val t = i.toDouble() / sampleRate
-            var value = 0.0
-            for ((harmonic, amp) in partials) {
-                value += amp * sin(2.0 * PI * harmonic * frequencyHz * t)
+            val sample = sin(2.0 * PI * i * frequencyHz / sampleRate)
+            val env = when {
+                i < fade -> i.toDouble() / fade
+                i > numSamples - 1 - fade -> (numSamples - 1 - i).toDouble() / fade
+                else -> 1.0
             }
-            samples[i] = value / ampSum // normalise pour eviter la saturation
+            buffer[i] = (sample * env * Short.MAX_VALUE * 0.8).toInt().toShort()
         }
 
-        applyEnvelope(samples, sampleRate, instrument)
-
-        val buffer = ShortArray(numSamples) {
-            (samples[it] * Short.MAX_VALUE * 0.85).toInt().toShort()
-        }
-
-        audioTrack = AudioTrack(
+        val track = AudioTrack(
             AudioManager.STREAM_MUSIC,
             sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
@@ -54,32 +78,21 @@ class NotePlayer {
             buffer.size * 2,
             AudioTrack.MODE_STATIC
         )
-        audioTrack?.write(buffer, 0, buffer.size)
-        audioTrack?.play()
-    }
-
-    /**
-     * Applique une attaque (montee progressive), une eventuelle decroissance
-     * exponentielle, et un court fondu de sortie pour eviter les "clics".
-     */
-    private fun applyEnvelope(samples: DoubleArray, sampleRate: Int, instrument: Instrument) {
-        val n = samples.size
-        if (n == 0) return
-        val attack = (sampleRate * instrument.attackMs / 1000.0).toInt().coerceIn(1, n)
-        val release = (sampleRate * 0.02).toInt().coerceIn(1, n)
-        val tau = n / 3.5 // constante de temps de la decroissance
-        for (i in 0 until n) {
-            var gain = 1.0
-            if (i < attack) gain *= i.toDouble() / attack
-            if (instrument.decay) gain *= exp(-i.toDouble() / tau)
-            val toEnd = n - 1 - i
-            if (toEnd < release) gain *= toEnd.toDouble() / release
-            samples[i] *= gain
-        }
+        track.write(buffer, 0, buffer.size)
+        activeTracks.add(track)
+        track.play()
+        // Libere la voix une fois la note terminee.
+        handler.postDelayed({
+            runCatching { track.release() }
+            activeTracks.remove(track)
+        }, durationMs.toLong() + 100)
     }
 
     fun release() {
-        audioTrack?.release()
-        audioTrack = null
+        handler.removeCallbacksAndMessages(null)
+        activeTracks.forEach { runCatching { it.release() } }
+        activeTracks.clear()
+        activePlayers.forEach { runCatching { it.reset(); it.release() } }
+        activePlayers.clear()
     }
 }

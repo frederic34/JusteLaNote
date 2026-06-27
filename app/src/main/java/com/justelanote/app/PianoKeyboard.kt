@@ -43,7 +43,8 @@ private val pitchesWithSharp = setOf("Do", "Re", "Fa", "Sol", "La")
 @Composable
 fun PianoKeyboard(
     notes: List<MusicalNote>,
-    selectedNote: MusicalNote,
+    highlightedNotes: Set<String>,
+    centerNote: MusicalNote,
     onNoteSelected: (MusicalNote) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -51,10 +52,10 @@ fun PianoKeyboard(
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
 
-    // Centre le clavier sur la note selectionnee au premier affichage.
+    // Centre le clavier sur la note de reference au premier affichage.
     LaunchedEffect(Unit) {
-        val whiteIndex = whiteKeys.indexOfFirst { it.name == selectedNote.name }
-            .let { if (it >= 0) it else whiteKeys.indexOfLast { w -> w.frequency <= selectedNote.frequency } }
+        val whiteIndex = whiteKeys.indexOfFirst { it.name == centerNote.name }
+            .let { if (it >= 0) it else whiteKeys.indexOfLast { w -> w.frequency <= centerNote.frequency } }
             .coerceAtLeast(0)
         val target = with(density) { (whiteKeyWidth * (whiteIndex - 2)).toPx() }
         // Attend que le contenu soit mesure pour que scrollTo ne soit pas tronque a 0.
@@ -71,7 +72,7 @@ fun PianoKeyboard(
             whiteKeys.forEach { note ->
                 WhiteKey(
                     note = note,
-                    selected = note.name == selectedNote.name,
+                    selected = note.name in highlightedNotes,
                     onClick = { onNoteSelected(note) }
                 )
             }
@@ -80,7 +81,7 @@ fun PianoKeyboard(
         whiteKeys.forEachIndexed { index, white ->
             val sharp = sharpFor(white, notes) ?: return@forEachIndexed
             BlackKey(
-                selected = sharp.name == selectedNote.name,
+                selected = sharp.name in highlightedNotes,
                 onClick = { onNoteSelected(sharp) },
                 modifier = Modifier.offset(x = whiteKeyWidth * (index + 1) - blackKeyWidth / 2)
             )

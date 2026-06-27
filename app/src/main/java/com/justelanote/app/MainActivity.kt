@@ -2,20 +2,27 @@ package com.justelanote.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.justelanote.app.ui.theme.JusteLaNoteTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -30,10 +37,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        notePlayer = NotePlayer()
+        notePlayer = NotePlayer(this)
 
         setContent {
-            MaterialTheme {
+            // null = suit le reglage systeme ; sinon choix manuel via la bascule.
+            var darkOverride by remember { mutableStateOf<Boolean?>(null) }
+            val isDark = darkOverride ?: isSystemInDarkTheme()
+            JusteLaNoteTheme(darkTheme = isDark, dynamicColor = false) {
                 PitchTrainerScreen(
                     notePlayer = notePlayer,
                     recorder = recorder,
@@ -41,7 +51,9 @@ class MainActivity : ComponentActivity() {
                     requestPermission = { callback ->
                         onPermissionResult = callback
                         requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
+                    },
+                    isDarkTheme = isDark,
+                    onToggleTheme = { darkOverride = !isDark }
                 )
             }
         }
@@ -62,10 +74,14 @@ fun PitchTrainerScreen(
     notePlayer: NotePlayer,
     recorder: AudioRecorderHelper,
     hasPermission: () -> Boolean,
-    requestPermission: (callback: (Boolean) -> Unit) -> Unit
+    requestPermission: (callback: (Boolean) -> Unit) -> Unit,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     var selectedNote by remember { mutableStateOf(NoteLibrary.defaultNote) }
     var selectedInstrument by remember { mutableStateOf(Instruments.default) }
+    // Notes en cours de lecture (polyphonie) ; comptees pour gerer les chevauchements.
+    val playingCounts = remember { mutableStateMapOf<String, Int>() }
     var isRecording by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -80,72 +96,90 @@ fun PitchTrainerScreen(
             resultText = if (detected == null) {
                 "Aucune note detectee. Chantez plus fort, plus pres du micro, ou tenez la note plus longtemps."
             } else {
-                val cents = NoteLibrary.centsOff(detected, selectedNote)
+                val cents = NoteLibrary.centsOffIgnoringOctave(detected, selectedNote)
                 val detectedClosest = NoteLibrary.closestNote(detected)
+                val octaves = NoteLibrary.octaveShift(detected, selectedNote)
                 val verdict = when {
                     kotlin.math.abs(cents) < 15 -> "Juste !"
                     cents > 0 -> "Trop haut de ${"%.0f".format(cents)} cents"
                     else -> "Trop bas de ${"%.0f".format(-cents)} cents"
                 }
-                "Detecte : ${detectedClosest.name} (${detected.toInt()} Hz)\n$verdict"
+                val octaveNote = when {
+                    octaves > 0 -> "\n(${octaves} octave${if (octaves > 1) "s" else ""} plus haut)"
+                    octaves < 0 -> "\n(${-octaves} octave${if (-octaves > 1) "s" else ""} plus bas)"
+                    else -> ""
+                }
+                // Conseil technique vocal selon le sens de l'ecart.
+                val tip = when {
+                    cents <= -15 -> "\nSoulevez le palais"
+                    cents >= 15 -> "\nAbaissez le larynx"
+                    else -> ""
+                }
+                "Detecte : ${detectedClosest.name} (${detected.toInt()} Hz)\n$verdict$octaveNote$tip"
             }
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("Juste La Note", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            "Entrainement a la justesse",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Spacer(Modifier.height(24.dp))
+    // Joue une note (polyphonie) : elle devient la cible unique et est surlignee
+    // tant qu'elle sonne ; plusieurs notes peuvent etre surlignees en meme temps.
+    fun play(note: MusicalNote, instrument: Instrument) {
+        selectedNote = note
+        notePlayer.playNote(note, instrument)
+        playingCounts[note.name] = (playingCounts[note.name] ?: 0) + 1
+        scope.launch {
+            delay(1500)
+            val remaining = (playingCounts[note.name] ?: 1) - 1
+            if (remaining <= 0) playingCounts.remove(note.name) else playingCounts[note.name] = remaining
+        }
+    }
 
+    val noteLabel: @Composable () -> Unit = {
         Text(
             "Note cible : ${selectedNote.name} (${selectedNote.frequency.toInt()} Hz)",
             style = MaterialTheme.typography.titleMedium
         )
+    }
 
-        Spacer(Modifier.height(8.dp))
-
+    val keyboard: @Composable () -> Unit = {
         PianoKeyboard(
             notes = NoteLibrary.notes,
-            selectedNote = selectedNote,
-            onNoteSelected = { note ->
-                selectedNote = note
-                notePlayer.playNote(note.frequency, selectedInstrument)
-            },
+            highlightedNotes = playingCounts.keys.toSet(),
+            centerNote = selectedNote,
+            onNoteSelected = { note -> play(note, selectedInstrument) },
             modifier = Modifier.fillMaxWidth()
         )
+    }
 
-        Spacer(Modifier.height(16.dp))
+    // Bouton-icone d'instrument (icone seule, sans texte). Le nom reste expose
+    // via contentDescription pour l'accessibilite.
+    val instrumentChip: @Composable (Instrument) -> Unit = { instrument ->
+        FilledIconToggleButton(
+            checked = instrument == selectedInstrument,
+            onCheckedChange = {
+                selectedInstrument = instrument
+                play(selectedNote, instrument)
+            }
+        ) {
+            Icon(
+                painter = painterResource(instrument.icon),
+                contentDescription = instrument.name
+            )
+        }
+    }
 
-        Text("Instrument", style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(4.dp))
+    // Portrait : rangee horizontale defilante.
+    val instrumentSelector: @Composable () -> Unit = {
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Instruments.all.forEach { instrument ->
-                FilterChip(
-                    selected = instrument == selectedInstrument,
-                    onClick = {
-                        selectedInstrument = instrument
-                        notePlayer.playNote(selectedNote.frequency, instrument)
-                    },
-                    label = { Text(instrument.name) }
-                )
-            }
+            Instruments.all.forEach { instrumentChip(it) }
         }
+    }
 
-        Spacer(Modifier.height(16.dp))
-
+    val recordButton: @Composable (Modifier) -> Unit = { buttonModifier ->
         Button(
+            modifier = buttonModifier,
             enabled = !isRecording,
             onClick = {
                 if (!hasPermission()) {
@@ -158,14 +192,112 @@ fun PitchTrainerScreen(
                 }
             }
         ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_mic),
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize)
+            )
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
             Text(if (isRecording) "Enregistrement..." else "Enregistrer (3s)")
         }
+    }
 
-        Spacer(Modifier.height(24.dp))
+    val resultDisplay: @Composable () -> Unit = {
         Text(
             resultText,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center
         )
+    }
+
+    val isLandscape =
+        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+    if (isLandscape) {
+        // Paysage : clavier a gauche, controles a droite, pour tout afficher sans scroller.
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(2f)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Juste La Note", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                noteLabel()
+                Spacer(Modifier.height(8.dp))
+                keyboard()
+            }
+            Spacer(Modifier.width(24.dp))
+            // Instruments empiles verticalement (defilants), bouton epingle en bas.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Instruments.all.forEach { instrumentChip(it) }
+                }
+                Spacer(Modifier.height(12.dp))
+                recordButton(Modifier)
+                Spacer(Modifier.height(8.dp))
+                resultDisplay()
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Juste La Note", style = MaterialTheme.typography.headlineMedium)
+            Text("Entrainement a la justesse", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(24.dp))
+            noteLabel()
+            Spacer(Modifier.height(8.dp))
+            keyboard()
+            Spacer(Modifier.height(16.dp))
+            instrumentSelector()
+            Spacer(Modifier.height(16.dp))
+            recordButton(Modifier)
+            Spacer(Modifier.height(24.dp))
+            resultDisplay()
+        }
+    }
+
+        IconButton(
+            onClick = onToggleTheme,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        ) {
+            Icon(
+                painter = painterResource(
+                    if (isDarkTheme) R.drawable.ic_light_mode else R.drawable.ic_dark_mode
+                ),
+                contentDescription = if (isDarkTheme) "Mode clair" else "Mode sombre"
+            )
+        }
+    }
     }
 }
