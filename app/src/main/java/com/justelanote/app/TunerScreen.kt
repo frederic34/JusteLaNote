@@ -75,7 +75,7 @@ fun TunerScreen(
                 // Lissage exponentiel de l'aiguille ; saut net si la note change
                 // (sinon elle baverait a travers la frontiere +/-50 cents).
                 displayCents = if (!hasReading || n.name != note?.name) c
-                else displayCents * 0.75 + c * 0.25
+                else displayCents * 0.85 + c * 0.15
                 note = n
                 hasReading = true
             } else if (++silence > 5) {
