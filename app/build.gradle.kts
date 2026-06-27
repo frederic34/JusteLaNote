@@ -15,8 +15,9 @@ android {
         applicationId = "com.justelanote.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // Renseignes par la CI a partir du tag (ex. v1.2) ; valeurs par defaut en local.
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
