@@ -1,7 +1,7 @@
 Echantillons d'instruments
 ==========================
 
-Les fichiers WAV de ce dossier proviennent de :
+Les echantillons audio de ce dossier proviennent de :
 
   VSCO 2 Community Edition (Versilian Studios Chamber Orchestra 2 CE)
   Versilian Studios LLC
@@ -13,11 +13,12 @@ Licence : CC0 1.0 Universal (domaine public)
 CC0 n'impose aucune obligation (ni attribution, ni partage a l'identique) ;
 ce credit est fourni par courtoisie envers les auteurs.
 
-Disposition attendue : un sous-dossier par instrument, un WAV par note nomme
-d'apres son numero MIDI (Do4 = 60, La4 = 69). Exemple :
+Disposition attendue : un sous-dossier par instrument, un fichier par note
+nomme d'apres son numero MIDI (Do4 = 60, La4 = 69). OGG/Vorbis recommande
+(plus leger), WAV accepte ; l'OGG prime pour une meme note. Exemple :
 
-  samples/violin/48.wav   (Do2)
-  samples/violin/60.wav   (Do3)
+  samples/violin/48.ogg   (Do2)
+  samples/violin/60.ogg   (Do3)
   samples/piano/...
 
 Cf. SampledNotePlayer.kt pour le chargement et la transposition.

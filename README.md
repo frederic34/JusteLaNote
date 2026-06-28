@@ -62,7 +62,7 @@ Tout est dans le package `com.justelanote.app`. Pas de DI ni de ViewModel : l'é
 | `MainActivity.kt` | Activité unique, navigation entraînement ↔ accordeur, écran `PitchTrainerScreen`, thème, permission micro |
 | `PianoKeyboard.kt` | Clavier de piano scrollable (touches blanches/noires, surlignage des notes en cours) |
 | `NotePlayer.kt` | Lecture **polyphonique** : échantillons VSCO 2 si disponibles, sinon synthé MIDI (`MediaPlayer`), sinon sinus (`AudioTrack`) pour le diapason |
-| `SampledNotePlayer.kt` | Sampler : lit des WAV depuis `assets/samples/` et les **transpose** par rééchantillonnage à la hauteur cible (décodeur WAV intégré) |
+| `SampledNotePlayer.kt` | Sampler : lit des échantillons **OGG/WAV** depuis `assets/samples/` et les **transpose** par rééchantillonnage à la hauteur cible (OGG décodé via `MediaCodec`, WAV décodé en interne) |
 | `MidiBuilder.kt` | Génère en mémoire un fichier MIDI (SMF) jouant une note avec un programme General MIDI |
 | `Instrument.kt` | Définition des instruments (programme GM + dossier d'échantillons + icône) |
 | `NoteLibrary.kt` | Tables de notes (tempérament égal, La=440), note la plus proche, calcul des cents et du décalage d'octave |
@@ -82,7 +82,7 @@ Tests unitaires JVM (sans appareil) :
 
 ## Pile technique
 
-Kotlin · Jetpack Compose (Material 3) · AGP 9.2.1 · Kotlin 2.2.10 · `compileSdk` 36 · `minSdk` 24. Synthèse audio via `AudioTrack` / `MediaPlayer` (synthé Sonivox intégré) et captation via `AudioRecord`.
+Kotlin · Jetpack Compose (Material 3) · AGP 9.2.1 · Kotlin 2.2.10 · `compileSdk` 36 · `minSdk` 24. Synthèse audio via `AudioTrack` / `MediaPlayer` (synthé Sonivox intégré), décodage des échantillons OGG via `MediaExtractor` / `MediaCodec`, captation via `AudioRecord`.
 
 ## Licence
 

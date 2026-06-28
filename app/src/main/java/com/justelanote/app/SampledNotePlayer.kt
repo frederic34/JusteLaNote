@@ -7,8 +7,12 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.os.Handler
 import android.os.Looper
+import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 import kotlin.math.pow
 
@@ -22,18 +26,19 @@ import kotlin.math.pow
  * lineaire), exactement comme un sampler. Polyphonie, fondus anti-clic et
  * cycle de vie calques sur [NotePlayer].
  *
- * Disposition attendue des assets (un dossier par instrument, un WAV par note,
- * nomme d'apres son numero MIDI) :
+ * Disposition attendue des assets (un dossier par instrument, un fichier par
+ * note, nomme d'apres son numero MIDI) :
  *
- *     assets/samples/violin/48.wav   (Do2)
- *     assets/samples/violin/60.wav   (Do3)
- *     assets/samples/violin/72.wav   (Do4)
+ *     assets/samples/violin/48.ogg   (Do2)
+ *     assets/samples/violin/60.ogg   (Do3)
+ *     assets/samples/violin/72.ogg   (Do4)
  *     assets/samples/piano/...
  *
  * Plus les notes de reference sont rapprochees (ex. tous les 3 demi-tons), plus
  * le timbre reste naturel ; plus elles sont espacees, plus l'APK est leger.
- * Les WAV PCM 8/16/24 bits et float 32 bits, mono ou stereo, sont supportes ;
- * le stereo est replie en mono.
+ * Formats : OGG/Vorbis (recommande, ~10x plus leger, decode via MediaCodec) et
+ * WAV (PCM 8/16/24 bits ou float 32). Le stereo est replie en mono. L'OGG prime
+ * sur le WAV pour une meme note.
  */
 class SampledNotePlayer(context: Context, private val baseDir: String = "samples") {
 
@@ -62,8 +67,12 @@ class SampledNotePlayer(context: Context, private val baseDir: String = "samples
         for (dir in dirs) {
             val files = runCatching { assets.list("$baseDir/$dir") }.getOrNull() ?: continue
             val midis = files
-                .filter { it.endsWith(".wav", ignoreCase = true) }
-                .mapNotNull { it.dropLast(4).toIntOrNull() }
+                .mapNotNull { name ->
+                    val dot = name.lastIndexOf('.')
+                    val ext = if (dot > 0) name.substring(dot + 1).lowercase() else ""
+                    if (ext == "ogg" || ext == "wav") name.substring(0, dot).toIntOrNull() else null
+                }
+                .distinct()
                 .sorted()
             if (midis.isNotEmpty()) map[dir] = midis
         }
@@ -138,11 +147,105 @@ class SampledNotePlayer(context: Context, private val baseDir: String = "samples
     private fun loadSample(instrument: String, midi: Int): Sample? {
         val key = "$instrument/$midi"
         cache[key]?.let { return it }
-        val bytes = runCatching {
-            assets.open("$baseDir/$key.wav").use { it.readBytes() }
-        }.getOrNull() ?: return null
-        return decodeWav(bytes, midi)?.also { cache[key] = it }
+        // OGG d'abord (compresse, leger), repli sur WAV.
+        val sample = decodeCompressed("$baseDir/$key.ogg", midi) ?: run {
+            val bytes = runCatching {
+                assets.open("$baseDir/$key.wav").use { it.readBytes() }
+            }.getOrNull()
+            bytes?.let { decodeWav(it, midi) }
+        }
+        return sample?.also { cache[key] = it }
     }
+
+    // Decode un asset audio compresse (OGG/Vorbis...) en PCM 16 bits mono via
+    // MediaExtractor + MediaCodec (API android.media, pas de lib tierce).
+    // Renvoie null si l'asset est absent ou indecodable.
+    private fun decodeCompressed(path: String, midi: Int): Sample? = runCatching {
+        assets.openFd(path).use { afd ->
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(afd)
+                val track = (0 until extractor.trackCount).firstOrNull {
+                    extractor.getTrackFormat(it)
+                        .getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
+                } ?: return@use null
+                val format = extractor.getTrackFormat(track)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: return@use null
+                extractor.selectTrack(track)
+
+                val codec = MediaCodec.createDecoderByType(mime)
+                codec.configure(format, null, null, 0)
+                codec.start()
+
+                var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                var rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                val pcm = ByteArrayOutputStream()
+                val info = MediaCodec.BufferInfo()
+                var inputDone = false
+                var outputDone = false
+
+                while (!outputDone) {
+                    if (!inputDone) {
+                        val inIndex = codec.dequeueInputBuffer(TIMEOUT_US)
+                        if (inIndex >= 0) {
+                            val inBuf = codec.getInputBuffer(inIndex)!!
+                            val size = extractor.readSampleData(inBuf, 0)
+                            if (size < 0) {
+                                codec.queueInputBuffer(
+                                    inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                                )
+                                inputDone = true
+                            } else {
+                                codec.queueInputBuffer(inIndex, 0, size, extractor.sampleTime, 0)
+                                extractor.advance()
+                            }
+                        }
+                    }
+                    val outIndex = codec.dequeueOutputBuffer(info, TIMEOUT_US)
+                    when {
+                        outIndex >= 0 -> {
+                            if (info.size > 0) {
+                                val outBuf = codec.getOutputBuffer(outIndex)!!
+                                val chunk = ByteArray(info.size)
+                                outBuf.position(info.offset)
+                                outBuf.get(chunk, 0, info.size)
+                                pcm.write(chunk)
+                            }
+                            codec.releaseOutputBuffer(outIndex, false)
+                            if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
+                        }
+                        outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            val f = codec.outputFormat
+                            channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                            rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        }
+                    }
+                }
+                codec.stop()
+                codec.release()
+
+                // PCM 16 bits little-endian entrelace -> mono.
+                val bytes = pcm.toByteArray()
+                if (channels < 1 || bytes.size < 2 * channels) return@use null
+                val frames = bytes.size / 2 / channels
+                val out = ShortArray(frames)
+                var bi = 0
+                for (frame in 0 until frames) {
+                    var acc = 0
+                    for (c in 0 until channels) {
+                        val lo = bytes[bi].toInt() and 0xFF
+                        val hi = bytes[bi + 1].toInt()
+                        acc += (hi shl 8) or lo
+                        bi += 2
+                    }
+                    out[frame] = (acc / channels).toShort()
+                }
+                Sample(out, rate, midi)
+            } finally {
+                extractor.release()
+            }
+        }
+    }.getOrNull()
 
     // Decodeur WAV minimal : parcourt les chunks RIFF, lit 'fmt ' et 'data',
     // replie en mono et normalise en PCM 16 bits.
@@ -219,5 +322,6 @@ class SampledNotePlayer(context: Context, private val baseDir: String = "samples
 
     private companion object {
         const val OUT_RATE = 44100
+        const val TIMEOUT_US = 10_000L
     }
 }

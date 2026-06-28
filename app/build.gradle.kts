@@ -11,6 +11,12 @@ android {
         }
     }
 
+    // Ne pas recompresser les OGG embarques (deja compresses) : indispensable
+    // pour les ouvrir via AssetFileDescriptor avec MediaExtractor/MediaCodec.
+    androidResources {
+        noCompress += "ogg"
+    }
+
     defaultConfig {
         applicationId = "com.justelanote.app"
         minSdk = 24
