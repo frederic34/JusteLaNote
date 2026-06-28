@@ -60,9 +60,10 @@ Tout est dans le package `com.justelanote.app`. Pas de DI ni de ViewModel : l'é
 | --- | --- |
 | `MainActivity.kt` | Activité unique, navigation entraînement ↔ accordeur, écran `PitchTrainerScreen`, thème, permission micro |
 | `PianoKeyboard.kt` | Clavier de piano scrollable (touches blanches/noires, surlignage des notes en cours) |
-| `NotePlayer.kt` | Lecture **polyphonique** : `AudioTrack` (sinus) pour le diapason, `MediaPlayer` + synthé MIDI pour les instruments |
+| `NotePlayer.kt` | Lecture **polyphonique** : échantillons VSCO 2 si disponibles, sinon synthé MIDI (`MediaPlayer`), sinon sinus (`AudioTrack`) pour le diapason |
+| `SampledNotePlayer.kt` | Sampler : lit des WAV depuis `assets/samples/` et les **transpose** par rééchantillonnage à la hauteur cible (décodeur WAV intégré) |
 | `MidiBuilder.kt` | Génère en mémoire un fichier MIDI (SMF) jouant une note avec un programme General MIDI |
-| `Instrument.kt` | Définition des instruments (programme GM + icône) |
+| `Instrument.kt` | Définition des instruments (programme GM + dossier d'échantillons + icône) |
 | `NoteLibrary.kt` | Tables de notes (tempérament égal, La=440), note la plus proche, calcul des cents et du décalage d'octave |
 | `PitchDetector.kt` | Détection de hauteur **YIN** (CMNDF + interpolation parabolique), médiane sur fenêtres glissantes |
 | `AudioRecorderHelper.kt` | Enregistrement micro ponctuel (test vocal de 3 s) |
@@ -87,5 +88,11 @@ Kotlin · Jetpack Compose (Material 3) · AGP 9.2.1 · Kotlin 2.2.10 · `compile
 Distribué sous licence **GNU General Public License v3.0** — voir le fichier [LICENSE](LICENSE).
 Vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer, à condition que les
 versions dérivées restent sous la même licence (copyleft).
+
+### Crédits
+
+Les échantillons d'instruments (`app/src/main/assets/samples/`) proviennent de
+[VSCO 2 Community Edition](https://versilian-studios.com/vsco-community/) — Versilian Studios LLC,
+sous licence [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (domaine public).
 
 © 2026 Frédéric France

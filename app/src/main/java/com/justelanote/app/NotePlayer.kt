@@ -17,9 +17,11 @@ import kotlin.math.sin
 
 /**
  * Joue des notes en polyphonie : chaque appel lance une voix independante qui
- * sonne sa duree puis se libere, sans couper les notes deja en cours. Le
- * diapason est synthetise (sinus pur) ; les autres instruments passent par le
- * synthetiseur General MIDI integre d'Android.
+ * sonne sa duree puis se libere, sans couper les notes deja en cours.
+ *
+ * Routage par instrument, du plus specifique au plus general : echantillons
+ * VSCO 2 si disponibles ([SampledNotePlayer]), sinon synthetiseur General MIDI
+ * integre d'Android, sinon sinus pur synthetise (diapason).
  */
 class NotePlayer(context: Context) {
 
@@ -27,11 +29,17 @@ class NotePlayer(context: Context) {
     private val handler = Handler(Looper.getMainLooper())
     private val activeTracks = mutableListOf<AudioTrack>()
     private val activePlayers = mutableListOf<MediaPlayer>()
+    private val sampled = SampledNotePlayer(context)
     private var voiceCounter = 0
 
     fun playNote(note: MusicalNote, instrument: Instrument, durationMs: Int = 1500) {
+        val dir = instrument.sampleDir
         val program = instrument.gmProgram
-        if (program == null) playSine(note.frequency, durationMs) else playMidi(note.midi, program, durationMs)
+        when {
+            dir != null && sampled.hasInstrument(dir) -> sampled.playNote(note, dir, durationMs)
+            program != null -> playMidi(note.midi, program, durationMs)
+            else -> playSine(note.frequency, durationMs)
+        }
     }
 
     private fun playMidi(midiNote: Int, program: Int, durationMs: Int) {
@@ -99,5 +107,6 @@ class NotePlayer(context: Context) {
         activeTracks.clear()
         activePlayers.forEach { runCatching { it.reset(); it.release() } }
         activePlayers.clear()
+        sampled.release()
     }
 }
