@@ -145,14 +145,15 @@ fun PitchTrainerScreen(
         }
     }
 
-    // Joue une note (polyphonie) : elle devient la cible unique et est surlignee
-    // tant qu'elle sonne ; plusieurs notes peuvent etre surlignees en meme temps.
+    // Joue une note (polyphonie) : elle devient la cible unique et est brievement
+    // surlignee (retour visuel d'appui, decorrele de la duree du son) ; plusieurs
+    // notes peuvent etre surlignees en meme temps.
     fun play(note: MusicalNote, instrument: Instrument) {
         selectedNote = note
         notePlayer.playNote(note, instrument)
         playingCounts[note.name] = (playingCounts[note.name] ?: 0) + 1
         scope.launch {
-            delay(1500)
+            delay(300)
             val remaining = (playingCounts[note.name] ?: 1) - 1
             if (remaining <= 0) playingCounts.remove(note.name) else playingCounts[note.name] = remaining
         }
