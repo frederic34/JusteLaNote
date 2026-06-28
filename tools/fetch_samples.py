@@ -16,9 +16,10 @@ convertit en OGG/Vorbis mono via ffmpeg et l'ecrit sous :
 ou <midi> est le numero MIDI de la note (Do4 = 60, La4 = 69), exactement ce
 qu'attend SampledNotePlayer.
 
-Instruments couverts : piano, violin, flute. L'orgue (pas de table de mapping
-fournie en amont) et la guitare (absente de VSCO 2 CE) ne sont pas pris en
-charge : l'application retombe alors sur le synthetiseur General MIDI.
+Instruments couverts : piano, violin, flute, cello, trumpet, clarinet. L'orgue
+(pas de table de mapping fournie en amont) et la guitare (absente de VSCO 2 CE)
+ne sont pas pris en charge : l'application retombe alors sur le synthetiseur
+General MIDI.
 
 Dependances : python3 et ffmpeg.
 
@@ -87,6 +88,24 @@ INSTRUMENTS = {
         "dir": "Woodwinds/Flute/susvib/",
         # susvib = note tenue avec vibrato ; on garde la 1re prise (_v1_1).
         "regex": re.compile(r"_([A-G][#b]?-?\d)_v1_1\.wav$"),
+    },
+    "cello": {
+        "kind": "note",
+        "dir": "Strings/Cello Section/susvib/",
+        # susvib = tenue avec vibrato ; couche de velocite v1.
+        "regex": re.compile(r"_([A-G][#b]?-?\d)_v1_\d+\.wav$"),
+    },
+    "trumpet": {
+        "kind": "note",
+        "dir": "Brass/Trumpet/sus/",
+        # sus = tenue ouverte (sans sourdine).
+        "regex": re.compile(r"_sus_([A-G][#b]?-?\d)_v\d+_rr\d+\.wav$"),
+    },
+    "clarinet": {
+        "kind": "note",
+        "dir": "Woodwinds/Clarinet/susLong/",
+        # susLong = tenue longue.
+        "regex": re.compile(r"_susLong_([A-G][#b]?-?\d)_v\d+_rr\d+_sum\.wav$"),
     },
 }
 

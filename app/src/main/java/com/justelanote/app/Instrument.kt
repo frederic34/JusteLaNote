@@ -24,10 +24,13 @@ object Instruments {
     val diapason = Instrument("Diapason", null, R.drawable.ic_diapason)
     val piano = Instrument("Piano", 0, R.drawable.ic_piano, sampleDir = "piano")        // Acoustic Grand Piano
     val orgue = Instrument("Orgue", 19, R.drawable.ic_orgue, sampleDir = "organ")       // Church Organ
-    val flute = Instrument("Flute", 73, R.drawable.ic_flute, sampleDir = "flute")       // Flute
     val violon = Instrument("Violon", 40, R.drawable.ic_violon, sampleDir = "violin")   // Violin
+    val violoncelle = Instrument("Violoncelle", 42, R.drawable.ic_cello, sampleDir = "cello")     // Cello
+    val flute = Instrument("Flute", 73, R.drawable.ic_flute, sampleDir = "flute")       // Flute
+    val clarinette = Instrument("Clarinette", 71, R.drawable.ic_clarinet, sampleDir = "clarinet") // Clarinet
+    val trompette = Instrument("Trompette", 56, R.drawable.ic_trumpet, sampleDir = "trumpet")     // Trumpet
     val guitare = Instrument("Guitare", 24, R.drawable.ic_guitare, sampleDir = "guitar") // Acoustic Guitar (nylon)
 
-    val all = listOf(diapason, piano, orgue, flute, violon, guitare)
+    val all = listOf(diapason, piano, orgue, violon, violoncelle, flute, clarinette, trompette, guitare)
     val default = diapason
 }
