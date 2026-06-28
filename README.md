@@ -28,7 +28,8 @@ L'APK est signé. N'étant pas distribué via le Play Store, Android peut affich
 ## Fonctionnalités
 
 - **Clavier de piano** (Do2–Do6) pour choisir et écouter la note cible, **polyphonique** : taper plusieurs touches les fait sonner ensemble.
-- **Instruments** : diapason (sinus pur) plus des timbres réels — piano, orgue, flûte, violon, guitare — joués par le **synthétiseur General MIDI intégré** d'Android. Boutons-icônes dédiés.
+- **Instruments** : diapason (sinus pur) plus des timbres réels — piano, orgue, flûte, violon, guitare. Joués par des **échantillons VSCO 2** (CC0) lorsqu'ils sont présents dans `assets/samples/`, sinon par le **synthétiseur General MIDI intégré** d'Android. Boutons-icônes dédiés.
+- **Lecture de mélodie** : un morceau de démonstration (« Au clair de la lune », chargé depuis un fichier **MusicXML**) se joue sur le clavier avec surlignage des touches au fil des notes.
 - **Test vocal** : enregistre 3 s au micro, détecte la hauteur (algorithme **YIN**) et affiche le verdict. La comparaison **ignore l'octave** (chanter le bon nom de note dans sa propre tessiture est compté juste — pratique pour les voix graves), avec l'octave réelle indiquée et des **conseils vocaux** (« Soulevez le palais » / « Abaissez le larynx »).
 - **Mode accordeur** : analyse en temps réel, note la plus proche, écart en cents (aiguille lissée) et **vu-mètre analogique vintage**. Détecte jusqu'aux cordes graves (~31 Hz, basse 5 cordes).
 - **Thème clair/sombre** (suit le système, bascule manuelle) et **mise en page adaptative** portrait/paysage.
